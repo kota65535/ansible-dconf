@@ -1,4 +1,4 @@
 language: python
 
-script: pytest
+script: py.test test.py
 
