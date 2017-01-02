@@ -1,5 +1,5 @@
 language: python
 
-install: apt-get install dconf-service dconf-cli
+install: sudo apt-get install dconf-service dconf-cli
 script: py.test test.py
 
