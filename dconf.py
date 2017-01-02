@@ -3,24 +3,61 @@
 import json
 import re
 import subprocess
+# import q
 
 from ansible.module_utils.basic import *
 
 def _escape_single_quotes(string):
     return re.sub("'", r"'\''", string)
 
+def _append_value(target, value):
+    '''append value to target if the value does not exists'''
+    # convert string into list
+    try:
+        target_list = list(eval(target))
+    except Exception:
+        target_list = [target]
+    try:
+        value_list = list(eval(value))
+    except Exception:
+        value_list = [value]
+
+    for v in value_list:
+        if v not in target_list:
+            target_list.append(v)
+
+    return target_list
+
+def _remove_value(target, value):
+    '''remove value from target if the value exists'''
+    try:
+        target_list = list(eval(target))
+    except Exception:
+        target_list = [target]
+    try:
+        value_list = list(eval(value))
+    except Exception:
+        value_list = [value]
+
+    for v in value_list:
+        if v in target_list:
+            target_list.remove(v)
+
+    return target_list
+
 def _set_value(user, key, value):
 
     command = " ".join([
         'export `/usr/bin/dbus-launch`',
         ';',
-        '/usr/bin/dconf write', key, "'%s'" % _escape_single_quotes(value),
+        '/usr/bin/dconf write', key, "'{0}'".format(_escape_single_quotes(value)),
         ';',
         'kill $DBUS_SESSION_BUS_PID &> /dev/null'
     ])
 
+    q(command)
     return subprocess.check_output([
-        'su', '-', user , '-c', command
+        'sudo', '-u', user , 'sh', '-c', command
     ]).strip()
 
 def _get_value(user, key):
@@ -34,14 +71,14 @@ def _get_value(user, key):
     ])
 
     return subprocess.check_output([
-        'su', '-', user , '-c', command
+        'sudo', '-u', user , 'sh', '-c', command
     ]).strip()
 
 def main():
 
     module = AnsibleModule(
         argument_spec = {
-            'state': { 'choices': ['present'], 'default': 'present' },
+            'state': { 'choices': ['present', 'append', 'absent'], 'default': 'present' },
             'user': { 'required': True },
             'key': { 'required': True },
             'value': { 'required': True },
@@ -56,6 +93,32 @@ def main():
     value = module.params['value']
 
     old_value = _get_value(user, key)
+    # q(old_value)
+
+    # --- Input value conversion ---
+    # str -> list (if it's list-formed)
+    try:
+        value = list(eval(value))
+    except Exception:
+        pass
+    # bool -> str
+    if isinstance(value, bool):
+        value = 'true' if value else 'false'
+
+    if state == 'append':
+        value = _append_value(old_value, value)
+    elif state == 'absent':
+        value = _remove_value(old_value, value)
+
+    # --- Conversion for dconf ---
+    if isinstance(value, list):
+        # Convert list into string
+        value = str(value)
+    elif isinstance(value, str):
+        # Add single quote for string
+        value = "'{0}'".format(value)
+    # q(value)
+
     changed = old_value != value
 
     if changed and not module.check_mode:
