@@ -3,7 +3,7 @@
 import json
 import re
 import subprocess
-# import q
+import q
 
 from ansible.module_utils.basic import *
 
@@ -14,11 +14,13 @@ def _append_value(target, value):
     '''append value to target if the value does not exists'''
     # convert string into list
     try:
-        target_list = list(eval(target))
+        if isinstance(eval(target), list):
+            target_list = list(eval(target))
     except Exception:
         target_list = [target]
     try:
-        value_list = list(eval(value))
+        if isinstance(eval(value), list):
+            value = list(eval(value))
     except Exception:
         value_list = [value]
 
@@ -31,11 +33,13 @@ def _append_value(target, value):
 def _remove_value(target, value):
     '''remove value from target if the value exists'''
     try:
-        target_list = list(eval(target))
+        if isinstance(eval(target), list):
+            target_list = list(eval(target))
     except Exception:
         target_list = [target]
     try:
-        value_list = list(eval(value))
+        if isinstance(eval(value), list):
+            value = list(eval(value))
     except Exception:
         value_list = [value]
 
@@ -93,17 +97,16 @@ def main():
     value = module.params['value']
 
     old_value = _get_value(user, key)
-    # q(old_value)
+    q(old_value)
 
     # --- Input value conversion ---
-    # str -> list (if it's list-formed)
+    # list: converted to list object
+    # str:  single quotes are stripped
+    # int:  do nothing
     try:
-        value = list(eval(value))
+        value = eval(value)
     except Exception:
         pass
-    # bool -> str
-    if isinstance(value, bool):
-        value = 'true' if value else 'false'
 
     if state == 'append':
         value = _append_value(old_value, value)
@@ -111,13 +114,19 @@ def main():
         value = _remove_value(old_value, value)
 
     # --- Conversion for dconf ---
+    # list: converted to str and single quotes added
+    # str:  single quotes are added
+    # bool: converted to str
+    # int:  converted to str
     if isinstance(value, list):
-        # Convert list into string
-        value = str(value)
+        value = "'{0}'".format(str(value))
     elif isinstance(value, str):
-        # Add single quote for string
         value = "'{0}'".format(value)
-    # q(value)
+    elif isinstance(value, bool):
+        value = 'true' if value else 'false'
+    elif isinstance(value, int):
+        value = str(value)
+    q(value)
 
     changed = old_value != value
 
