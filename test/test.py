@@ -16,7 +16,7 @@ def test_set_int():
     output = subprocess.check_output([
         'dconf', 'read', key
     ]).strip()
-    assert output == "'{0}'".format(value)
+    assert output == str(value)
 
 
 def test_set_str():
